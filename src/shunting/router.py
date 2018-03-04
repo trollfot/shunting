@@ -4,20 +4,14 @@ import regex
 from collections import namedtuple, defaultdict
 from functools import lru_cache
 
-
 HTTP_METHODS = frozenset((
     'GET', 'POST', 'PUT', 'HEAD', 'OPTIONS', 'PATCH', 'DELETE'))
-
 
 ANY = '_ANY_'
 ROUTER_CACHE_SIZE = 1024
 
-
-Route = namedtuple(
-    'Route', ['path', 'pattern', 'methods', 'handlers', 'complexity'])
-Found = namedtuple(
-    'Found', ['route', 'params', 'consumed'])
-
+Route = namedtuple('Route', ['path', 'pattern', 'methods', 'handlers'])
+Found = namedtuple('Found', ['route', 'params', 'consumed'])
 NotSupported = object()
 NotFound = object()
 
@@ -113,11 +107,11 @@ class SimpleParser:
         start = 0
         route_pattern = ''
         names = set()
-        for idx, param in enumerate(self.vfinder.finditer(url), 1):
+        for param in self.vfinder.finditer(url):
             span, values = param.span(), param.groups()
             name, _, pname = values
             if not name:
-                name = "_param_{}".format(idx)
+                name = "_param_{}".format(nbvars + 1)
 
             if not name in names:
                 names.add(name)
@@ -191,7 +185,7 @@ class Router:
                 else:
                     compiled = regex.compile(pattern)
                     routes[pattern] = Route(
-                        pattern, compiled, adding, methods, nbvars)
+                        pattern, compiled, adding, methods)
                 self._complex_routes[discriminant] = tuple(routes.values())
             else:
                 route = self.direct_routes.get(pattern, None)
@@ -200,7 +194,7 @@ class Router:
                     self.direct_routes[pattern] = new_route
                 else:
                     self.direct_routes[pattern] = Route(
-                        pattern, None, adding, methods, nbvars)
+                        pattern, None, adding, methods)
 
     #@lru_cache(maxsize=ROUTER_CACHE_SIZE)
     def select(self, path, method):
@@ -218,10 +212,8 @@ class Router:
         if discriminant in self._complex_routes:
             for route in self._complex_routes[discriminant]:
                 match = route.pattern.match(route.path)
-                if match:
-                    if not method in route.methods:
-                        if not ANY in route.methods:
-                            found = True
-                            continue
-                    return Found(route, match.groupdict(), match.group(0))
+                if match:                        
+                    if route.methods & frozenset((method, ANY)):
+                        return Found(route, match.groupdict(), match.group(0))
+                    found = True
         return found and NotSupported or NotFound
