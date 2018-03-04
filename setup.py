@@ -10,7 +10,7 @@ def read(filename):
 
 
 install_requires = [
-    'regex',
+    'autoroutes',
     ]
 
 tests_require = [
